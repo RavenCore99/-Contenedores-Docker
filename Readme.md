@@ -83,7 +83,7 @@ Qué hace exactamente el script:
   2. Construye imágenes e inicia Compose (perfil `tres` + `compose.tres.yaml` solo en modo 3).
   3. Espera salud real de cada API y del balanceador; visita `/docs`.
   4. Registra diez solicitudes a `/` en una tabla Rich.
-  5. Abre la consola interactiva (`ayuda`, `estado`, `probar`, …).
+  5. Abre la consola interactiva (`ayuda`, `estado`, `probar [N]`, …).
   6. Con `Ctrl+C`, `salir` o al cerrar la terminal (`SIGHUP`/`SIGTERM`), detiene únicamente su pila Compose.
 
 </details>
@@ -143,13 +143,13 @@ Cuando el arranque termina, escribe un comando y pulsa **Enter**:
 | `ayuda` | Lista los comandos disponibles |
 | `estado` | Estado Docker y `/salud` de cada API + balanceador |
 | `detener 1` / `iniciar 1` | Detiene o recupera solo esa API (números válidos según modo 2 o 3) |
-| `probar` | Diez solicitudes reales a `/` (servidor, duración, errores) |
+| `probar` / `probar N` | N solicitudes reales a `/` (por defecto 10; servidor, duración, errores) |
 | `informe` | Exporta Markdown + CSV en `informes/` (ignorado por Git) |
 | `salir` o **Ctrl+C** | Apaga la pila propia y termina |
 
 > [!TIP]
 > Secuencia útil para el informe del taller:  
-> `estado` → `probar` → `detener 2` → `estado` → `probar` → `iniciar 2` → `estado` → `probar` → `informe`.  
+> `estado` → `probar` → `detener 2` → `estado` → `probar 20` → `iniciar 2` → `estado` → `probar 5` → `informe`.  
 > El estado del contenedor y la respuesta HTTP pueden diferir: un contenedor “running” no se da por conectado si `/salud` falla. Los errores de red se registran tal cual; no se inventan respuestas.
 
 ## Uso manual sin lanzador
