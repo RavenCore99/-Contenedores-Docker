@@ -1,20 +1,17 @@
-# PowerShell 5.1+ / 7: .\iniciar.ps1 -servidores 2 (o 3)
+# PowerShell 5.1+ / 7: .\iniciar.ps1 -servidores 2
+# Si ExecutionPolicy bloquea este archivo, use en su lugar: activar.cmd --servidores 2
 param(
     [ValidateSet(2, 3)]
     [int]$servidores = 3
 )
 $ErrorActionPreference = 'Stop'
-$Venv = Join-Path $PSScriptRoot '.venv'
-$Python = Join-Path $Venv 'Scripts\python.exe'
-if (-not (Test-Path $Python)) {
-    if (Get-Command py -ErrorAction SilentlyContinue) {
-        & py -3 -m venv $Venv
-    } else {
-        & python -m venv $Venv
-    }
-    if ($LASTEXITCODE -ne 0) { throw 'No se pudo crear el entorno Python.' }
+$activar = Join-Path -Path $PSScriptRoot -ChildPath 'activar.cmd'
+if (-not (Test-Path -LiteralPath $activar)) {
+    throw "Falta activar.cmd junto a este script ($PSScriptRoot)."
 }
-& $Python -m pip install -q -r (Join-Path $PSScriptRoot 'requirements-cli.txt')
-if ($LASTEXITCODE -ne 0) { throw 'No se pudieron instalar las dependencias del lanzador.' }
-& $Python (Join-Path $PSScriptRoot 'launcher.py') --servidores $servidores
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+$process = Start-Process -FilePath $env:ComSpec `
+    -ArgumentList @('/c', "`"$activar`" --servidores $servidores") `
+    -WorkingDirectory $PSScriptRoot `
+    -NoNewWindow -Wait -PassThru
+if ($null -eq $process.ExitCode) { exit 1 }
+exit $process.ExitCode
