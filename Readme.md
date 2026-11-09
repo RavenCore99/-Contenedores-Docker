@@ -40,18 +40,19 @@ Los scripts de arranque crean un `.venv` local, instalan solo dependencias del l
 > Los scripts resuelven siempre la carpeta donde están los archivos (`iniciar.sh` / `iniciar.cmd`). Puedes clonar o copiar el proyecto en cualquier ruta; no dependen de una ubicación fija del disco.
 
 > [!WARNING]
-> No mezcles la fase de 2 y la de 3 sin apagar la anterior: ambas publican el puerto **8080**. Si el lanzador detecta contenedores previos de esta misma práctica, **no los apaga automáticamente**; deténlos a mano y vuelve a iniciar.
+> No mezcles la fase de 2 y la de 3 sin apagar la anterior: ambas publican el puerto **8080**. Si el lanzador detecta contenedores previos de esta misma práctica, **no los apaga automáticamente**; usa `./iniciar.sh --detener` (o `iniciar.cmd --detener`) y vuelve a iniciar.
 
 ## Ejecución rápida
 
 | Sistema | Comando de entrada | Detener |
 |---|---|---|
-| Linux | `./iniciar.sh --servidores 2` | `Ctrl+C` o `salir` |
-| Linux (3 servidores) | `./iniciar.sh --servidores 3` | `Ctrl+C` o `salir` |
-| Windows | `iniciar.cmd --servidores 2` | `Ctrl+C` o `salir` |
-| Windows (3 servidores) | `iniciar.cmd --servidores 3` | `Ctrl+C` o `salir` |
+| Linux | `./iniciar.sh --servidores 2` | `Ctrl+C`, `salir` o cerrar la terminal |
+| Linux (3 servidores) | `./iniciar.sh --servidores 3` | `Ctrl+C`, `salir` o cerrar la terminal |
+| Windows | `iniciar.cmd --servidores 2` | `Ctrl+C`, `salir` o cerrar la terminal |
+| Windows (3 servidores) | `iniciar.cmd --servidores 3` | `Ctrl+C`, `salir` o cerrar la terminal |
+| Recuperación (huérfanos) | `./iniciar.sh --detener` / `iniciar.cmd --detener` | Apaga la pila si quedó activa |
 
-`3` es el valor predeterminado si omites `--servidores`. Al salir, el lanzador hace `docker compose down` **solo** de la pila que él creó (nombre de proyecto derivado de la ruta del clon).
+`3` es el valor predeterminado si omites `--servidores`. Al salir (incluye cerrar la ventana de terminal), el lanzador hace `docker compose down` **solo** de la pila que él creó (nombre de proyecto derivado de la ruta del clon).
 
 URLs útiles mientras corre:
 
@@ -83,7 +84,7 @@ Qué hace exactamente el script:
   3. Espera salud real de cada API y del balanceador; visita `/docs`.
   4. Registra diez solicitudes a `/` en una tabla Rich.
   5. Abre la consola interactiva (`ayuda`, `estado`, `probar`, …).
-  6. Con `Ctrl+C` o `salir`, detiene únicamente su pila Compose.
+  6. Con `Ctrl+C`, `salir` o al cerrar la terminal (`SIGHUP`/`SIGTERM`), detiene únicamente su pila Compose.
 
 </details>
 

@@ -123,6 +123,25 @@ class LauncherTests(unittest.TestCase):
         launcher.launch(2)
         self.assertEqual(run.call_args.args[0][-1], "down")
 
+    @patch("launcher.interactive.interactive_loop", side_effect=SystemExit(129))
+    @patch("launcher.wait_until_healthy")
+    @patch("launcher.record_requests", return_value=["Servidor 1"] * 10)
+    @patch("launcher.run_command")
+    def test_terminal_hangup_also_downs_own_stack(self, run, _records, _healthy, _loop):
+        run.return_value = subprocess.CompletedProcess([], 0, "", "")
+        with self.assertRaises(SystemExit):
+            launcher.launch(2)
+        self.assertEqual(run.call_args.args[0][-1], "down")
+
+    @patch("launcher.run_command")
+    def test_stop_project_downs_full_stack(self, run):
+        run.return_value = subprocess.CompletedProcess([], 0, "", "")
+        launcher.stop_project()
+        command = run.call_args.args[0]
+        self.assertEqual(command[-1], "down")
+        self.assertIn("--profile", command)
+        self.assertIn("tres", command)
+
 
 if __name__ == "__main__":
     unittest.main()

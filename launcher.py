@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Lanzador interactivo de las fases de dos y tres servidores."""
+import atexit
 import hashlib
 import json
+import signal
 import socket
 import subprocess
 import time
@@ -92,22 +94,63 @@ def record_requests(servers: int) -> list[str]:
     return responses
 
 
+def stop_project() -> None:
+    """Detiene la pila Compose de esta práctica (incluye servicios del perfil tres)."""
+    with console.status("[cyan]Deteniendo contenedores de la práctica…", spinner="dots"):
+        checked(compose_command(3) + ["down"])
+    console.print("[green]Contenedores detenidos.[/green]")
+
+
+def _shutdown_signals() -> tuple[signal.Signals, ...]:
+    signals = [signal.SIGINT, signal.SIGTERM]
+    if hasattr(signal, "SIGHUP"):
+        signals.append(signal.SIGHUP)
+    return tuple(signals)
+
+
 def launch(servers: int) -> None:
     command = compose_command(servers)
     existing = checked(compose_command(3) + ["ps", "-a", "-q"])
     if existing.stdout.strip():
-        raise RuntimeError("Hay contenedores existentes de esta práctica. Deténgalos manualmente antes de iniciar; no se alteraron.")
+        raise RuntimeError(
+            "Hay contenedores existentes de esta práctica. "
+            "Ejecuta ./iniciar.sh --detener (o iniciar.cmd --detener) y vuelve a iniciar; no se alteraron."
+        )
     with socket.socket() as sock:
         try:
             sock.bind(("127.0.0.1", 8080))
         except OSError as exc:
             raise RuntimeError("El puerto 8080 está ocupado; no se iniciaron contenedores") from exc
     started = False
+    cleaned = False
     failure: Exception | None = None
+    previous_handlers: dict[signal.Signals, object] = {}
+
+    def cleanup_stack() -> None:
+        nonlocal cleaned
+        if cleaned or not started:
+            return
+        cleaned = True
+        try:
+            with console.status("[cyan]Deteniendo contenedores de la práctica…", spinner="dots"):
+                checked(command + ["down"])
+            console.print("[green]Contenedores detenidos.[/green]")
+        except Exception as cleanup_error:
+            if failure is None:
+                raise
+            console.print(f"[red]Además, falló la limpieza: {cleanup_error}[/red]")
+
+    def on_terminal_gone(signum: int, _frame: object) -> None:
+        # SystemExit ejecuta finally/atexit; sin esto, cerrar la terminal deja la pila en -d.
+        raise SystemExit(128 + signum)
+
     try:
         with console.status("[cyan]Construyendo las imágenes Docker…", spinner="dots"):
             checked(command + ["build"])
         started = True
+        atexit.register(cleanup_stack)
+        for sig in _shutdown_signals():
+            previous_handlers[sig] = signal.signal(sig, on_terminal_gone)
         with console.status("[cyan]Iniciando contenedores…", spinner="dots"):
             checked(command + ["up", "-d", "--no-build"])
         with console.status("[cyan]Comprobando APIs, balanceador y Swagger…", spinner="dots"):
@@ -116,7 +159,10 @@ def launch(servers: int) -> None:
         session = interactive.Session(servers)
         for attempt, name in enumerate(record_requests(servers), start=1):
             session.add("solicitud", etapa="inicial", intento=attempt, servidor=name, error="", duracion_ms="")
-        console.print("[bold]Escribe 'ayuda' para pruebas interactivas; Ctrl+C o 'salir' detiene la práctica.[/bold]")
+        console.print(
+            "[bold]Escribe 'ayuda' para pruebas interactivas; "
+            "Ctrl+C, 'salir' o cerrar la terminal detiene la práctica.[/bold]"
+        )
         interactive.interactive_loop(servers, command, run_command, fetch_json, console, ROOT / "informes", session)
     except KeyboardInterrupt:
         console.print("\n[yellow]Interrupción recibida.[/yellow]")
@@ -124,20 +170,21 @@ def launch(servers: int) -> None:
         failure = exc
         raise
     finally:
-        if started:
-            try:
-                with console.status("[cyan]Deteniendo contenedores de la práctica…", spinner="dots"):
-                    checked(command + ["down"])
-                console.print("[green]Contenedores detenidos.[/green]")
-            except Exception as cleanup_error:
-                if failure is None:
-                    raise
-                console.print(f"[red]Además, falló la limpieza: {cleanup_error}[/red]")
+        for sig, handler in previous_handlers.items():
+            signal.signal(sig, handler)  # type: ignore[arg-type]
+        atexit.unregister(cleanup_stack)
+        cleanup_stack()
 
 
 @app.command()
-def main(servidores: int = typer.Option(3, "--servidores", help="Fase inicial: 2; ampliación: 3")) -> None:
+def main(
+    servidores: int = typer.Option(3, "--servidores", help="Fase inicial: 2; ampliación: 3"),
+    detener: bool = typer.Option(False, "--detener", help="Detiene contenedores huérfanos de esta práctica y sale"),
+) -> None:
     try:
+        if detener:
+            stop_project()
+            return
         launch(servidores)
     except (RuntimeError, TimeoutError, ValueError, FileNotFoundError) as exc:
         console.print(f"[red]Error: {exc}[/red]")

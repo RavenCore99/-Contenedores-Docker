@@ -20,6 +20,7 @@ if "%CODE%"=="2" (
     echo La practica no se inicio. Revise los mensajes anteriores.
     echo Uso: iniciar.cmd --servidores 2
     echo      iniciar.cmd --servidores 3
+    echo      iniciar.cmd --detener
 )
 echo.
 pause
