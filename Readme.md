@@ -20,15 +20,24 @@ Desde la raíz del clon, en **Linux**:
 ./iniciar.sh --servidores 3   # ampliación: tres servidores (también es el valor predeterminado)
 ```
 
-En **Windows** (CMD, PowerShell o doble clic), use `activar.cmd`. No depende de la ExecutionPolicy de PowerShell:
+En **Windows** (CMD, PowerShell o doble clic), use **`iniciar.cmd`** (también vale `activar.cmd`). No necesita `Set-ExecutionPolicy`: el `.cmd` arranca el preparador con `-ExecutionPolicy Bypass` solo para esa ejecución.
 
 ```bat
-activar.cmd --servidores 2
+iniciar.cmd --servidores 2
 :: Ctrl+C; después:
-activar.cmd --servidores 3
+iniciar.cmd --servidores 3
 ```
 
-`activar.cmd` comprueba Python 3.11+ y Docker, ofrece instalarlos con `winget` si faltan (con confirmación), crea `.venv`, instala Typer/Rich desde `requirements-cli.txt`, prepara `informes\` y abre la misma consola interactiva que en Linux. Si PowerShell no bloquea scripts, también puede usarse `.\iniciar.ps1 -servidores 2` (delega en `activar.cmd`). No hace falta activar el venv a mano.
+`iniciar.cmd` / `scripts\windows\preparar.ps1`:
+- trabaja siempre desde la carpeta del proyecto (cualquier ubicación);
+- refresca el PATH de la sesión tras `winget` (evita el bucle “Docker sigue sin estar en el PATH”);
+- busca `docker.exe` también en Program Files y LocalAppData (instalación por usuario);
+- comprueba WSL 2 (requisito de Docker Desktop) y puede abrir un PowerShell elevado con `wsl --install --no-distribution`; tras eso hay que **reiniciar Windows** y volver a ejecutar `iniciar.cmd`;
+- no reinstala Docker si ya detecta Docker Desktop;
+- inicia Docker Desktop y espera al motor;
+- crea `.venv`, sincroniza Typer/Rich y abre la misma consola interactiva que en Linux.
+
+No use `.\iniciar.ps1` a menos que ejecute PowerShell con Bypass; la vía soportada es `iniciar.cmd`. No hace falta activar el venv a mano.
 
 Ambos lanzadores comprueban los servidores y las rutas `/salud` y `/docs`, registran diez respuestas de `/` y abren una consola de comandos. El lanzador usa un nombre de proyecto Compose derivado de la ruta del clon, distinto del proyecto manual, y al salir detiene únicamente esa pila. Si ya hay contenedores de esa misma pila, se niega a tomarlos o apagarlos; ciérralos manualmente antes de volver a iniciar.
 
@@ -66,6 +75,6 @@ No mezcles las fases sin detener la anterior: comparten puerto 8080. `docker com
 - `Dockerfile`: `FROM python:3.11-slim` elige la base; `WORKDIR /app` fija el directorio; `COPY requirements.txt .` y `RUN pip install ...` instalan dependencias; `COPY app.py .` añade la aplicación; `EXPOSE 8000` documenta el puerto interno; `CMD ... uvicorn` inicia el servidor escuchando en todas las interfaces.
 - `compose.yaml` y `nginx/nginx.conf`: fase inicial con dos servidores y Nginx en el puerto 80 interno, publicado como 8080.
 - `compose.tres.yaml` y `nginx/nginx.tres.conf`: ampliación con `servidor3` y upstream de tres servidores.
-- `launcher.py`, `interactive.py`, `iniciar.sh`, `activar.cmd`, `iniciar.ps1`, `requirements-cli.txt`: ejecución y pruebas interactivas multiplataforma. En Windows la entrada recomendada es `activar.cmd`. `tests/` valida modos, estado, comandos, informes y limpieza.
+- `launcher.py`, `interactive.py`, `iniciar.sh`, `iniciar.cmd`, `activar.cmd`, `scripts/windows/preparar.ps1`, `iniciar.ps1`, `requirements-cli.txt`: ejecución multiplataforma. En Windows la entrada es `iniciar.cmd`. `tests/` valida modos, estado, comandos, informes y limpieza.
 
 **Autor original:** Yecid Villamil · Universidad de Cundinamarca, Ingeniería de Sistemas y Computación. [Repositorio del equipo](https://github.com/VILLAMIL-EST/-Contenedores-Docker). Documentación: [Docker](https://docs.docker.com/), [FastAPI](https://fastapi.tiangolo.com/), [Nginx](https://nginx.org/en/docs/).
