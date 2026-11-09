@@ -15,10 +15,24 @@ def now() -> str:
     return datetime.now().astimezone().isoformat(timespec="seconds")
 
 
+DEFAULT_PROBES = 10
+
+
 def parse_command(text: str, servers: int) -> tuple[str, int | None]:
     words = text.strip().lower().split()
-    if len(words) == 1 and words[0] in ("estado", "probar", "informe", "ayuda", "salir"):
+    if len(words) == 1 and words[0] in ("estado", "informe", "ayuda", "salir"):
         return words[0], None
+    if words and words[0] == "probar":
+        if len(words) == 1:
+            return "probar", DEFAULT_PROBES
+        if len(words) == 2:
+            try:
+                count = int(words[1])
+            except ValueError:
+                count = 0
+            if count >= 1:
+                return "probar", count
+        raise ValueError("Comando inválido. Usa 'probar' o 'probar N' con N ≥ 1.")
     if len(words) == 2 and words[0] in ("detener", "iniciar"):
         try:
             number = int(words[1])
@@ -99,10 +113,12 @@ def control_server(action: str, number: int, command: list[str], run: Callable, 
     return observed
 
 
-def probe_round(servers: int, fetch: Callable) -> list[dict]:
+def probe_round(servers: int, fetch: Callable, count: int = DEFAULT_PROBES) -> list[dict]:
+    if count < 1:
+        raise ValueError("La cantidad de pruebas debe ser ≥ 1.")
     expected = {f"Servidor {n}" for n in range(1, servers + 1)}
     records = []
-    for number in range(1, 11):
+    for number in range(1, count + 1):
         started = time.perf_counter()
         row = {"fecha": now(), "intento": number, "servidor": "", "error": "", "duracion_ms": 0}
         try:
@@ -163,7 +179,9 @@ def show_status(console: Console, services: list[dict], balanceador: dict) -> No
 
 
 def show_round(console: Console, rows: list[dict]) -> None:
-    table = Table(title="Diez solicitudes reales")
+    total = len(rows)
+    title = "Diez solicitudes reales" if total == DEFAULT_PROBES else f"{total} solicitudes reales"
+    table = Table(title=title)
     for col in ("N.º", "Servidor", "Duración (ms)", "Error"):
         table.add_column(col)
     for row in rows:
@@ -172,7 +190,7 @@ def show_round(console: Console, rows: list[dict]) -> None:
 
 
 def interactive_loop(servers: int, command: list[str], run: Callable, fetch: Callable, console: Console, reports: Path, session: Session) -> None:
-    console.print("[bold]Comandos: estado | probar | detener N | iniciar N | informe | ayuda | salir[/bold]")
+    console.print("[bold]Comandos: estado | probar [N] | detener N | iniciar N | informe | ayuda | salir[/bold]")
     while True:
         try:
             text = console.input("[cyan]práctica> [/cyan]")
@@ -183,19 +201,22 @@ def interactive_loop(servers: int, command: list[str], run: Callable, fetch: Cal
             if action == "salir":
                 return
             if action == "ayuda":
-                console.print("estado: Docker y HTTP reales; probar: diez solicitudes; detener/iniciar N: cambia una API; informe: Markdown + CSV; salir o Ctrl+C: apaga la pila.")
+                console.print("estado: Docker y HTTP reales; probar [N]: N solicitudes (por defecto 10); detener/iniciar N: cambia una API; informe: Markdown + CSV; salir o Ctrl+C: apaga la pila.")
             elif action == "estado":
                 services, balancer = all_status(servers, command, run, fetch)
                 show_status(console, services, balancer)
                 session.add("estado", servidores=services, balanceador=balancer)
             elif action == "probar":
-                rows = probe_round(servers, fetch)
+                rows = probe_round(servers, fetch, count=number)
                 show_round(console, rows)
                 round_name = f"manual {1 + sum(event['accion'] == 'prueba' for event in session.events)}"
                 for row in rows:
                     session.add("solicitud", etapa=round_name, **row)
-                session.add("prueba", exitos=sum(not row["error"] for row in rows), errores=sum(bool(row["error"]) for row in rows))
-                console.print(f"Éxitos: {sum(not row['error'] for row in rows)}/10; errores: {sum(bool(row['error']) for row in rows)}/10")
+                successes = sum(not row["error"] for row in rows)
+                failures = sum(bool(row["error"]) for row in rows)
+                total = len(rows)
+                session.add("prueba", exitos=successes, errores=failures, solicitudes=total)
+                console.print(f"Éxitos: {successes}/{total}; errores: {failures}/{total}")
             elif action in ("detener", "iniciar"):
                 state = control_server(action, number, command, run)
                 console.print(f"{state['servidor']}: Docker={state['docker']}, HTTP={state['http']}. {state['detalle']}")

@@ -15,13 +15,23 @@ class InteractiveTests(unittest.TestCase):
         self.fetch = Mock()
 
     def test_parse_commands_and_bound_server_ids(self):
-        for command in ("estado", "probar", "informe", "ayuda", "salir"):
+        for command in ("estado", "informe", "ayuda", "salir"):
             self.assertEqual(interactive.parse_command(command, 2), (command, None))
+        self.assertEqual(interactive.parse_command("probar", 2), ("probar", 10))
+        self.assertEqual(interactive.parse_command("probar 5", 2), ("probar", 5))
+        self.assertEqual(interactive.parse_command(" probar 1 ", 3), ("probar", 1))
         self.assertEqual(interactive.parse_command(" detener 2 ", 2), ("detener", 2))
         self.assertEqual(interactive.parse_command("iniciar 3", 3), ("iniciar", 3))
-        for command in ("detener 3", "iniciar 0", "detener x", "iniciar", "desconocido", "probar 2"):
+        for command in ("detener 3", "iniciar 0", "detener x", "iniciar", "desconocido", "probar 0", "probar -1", "probar x", "probar 2 3"):
             with self.subTest(command=command), self.assertRaises(ValueError):
                 interactive.parse_command(command, 2)
+
+    def test_probe_round_respects_requested_count(self):
+        self.fetch.side_effect = [{"mensaje": "Hola desde el Servidor 1"}] * 3
+        records = interactive.probe_round(2, self.fetch, count=3)
+        self.assertEqual(len(records), 3)
+        self.assertEqual([r["intento"] for r in records], [1, 2, 3])
+        self.assertEqual(self.fetch.call_count, 3)
 
     def test_stopped_container_is_disconnected_without_exec(self):
         rows = [{"Service": "servidor1", "State": "exited"}, {"Service": "servidor2", "State": "running"}]
@@ -78,6 +88,7 @@ class InteractiveTests(unittest.TestCase):
         self.assertIn("caído", records[0]["error"])
         self.assertEqual([r["servidor"] for r in records[1:]], ["Servidor 2"] * 9)
         self.assertTrue(all("fecha" in r and "duracion_ms" in r for r in records))
+        self.assertEqual(self.fetch.call_count, 10)
 
     def test_report_contains_observed_events_and_csv_rows(self):
         session = interactive.Session(3)
