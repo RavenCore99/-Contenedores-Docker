@@ -7,3 +7,4 @@ dist
 build
 *.log
 tests/__pycache__
+/informes/

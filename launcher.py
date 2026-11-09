@@ -4,7 +4,6 @@ import hashlib
 import json
 import socket
 import subprocess
-import threading
 import time
 from collections import Counter
 from pathlib import Path
@@ -13,6 +12,8 @@ from urllib.request import ProxyHandler, build_opener
 import typer
 from rich.console import Console
 from rich.table import Table
+
+import interactive
 
 ROOT = Path(__file__).resolve().parent
 PROJECT_NAME = "taller-" + hashlib.sha256(str(ROOT).encode("utf-8")).hexdigest()[:12]
@@ -91,10 +92,6 @@ def record_requests(servers: int) -> list[str]:
     return responses
 
 
-def wait_for_interrupt() -> None:
-    threading.Event().wait()
-
-
 def launch(servers: int) -> None:
     command = compose_command(servers)
     existing = checked(compose_command(3) + ["ps", "-a", "-q"])
@@ -116,9 +113,11 @@ def launch(servers: int) -> None:
         with console.status("[cyan]Comprobando APIs, balanceador y Swagger…", spinner="dots"):
             wait_until_healthy(servers)
         console.print(f"[green]Activos: {servers} servidores y Nginx en http://localhost:8080[/green]")
-        record_requests(servers)
-        console.print("[bold]Pulsa Ctrl+C para detener esta práctica.[/bold]")
-        wait_for_interrupt()
+        session = interactive.Session(servers)
+        for attempt, name in enumerate(record_requests(servers), start=1):
+            session.add("solicitud", etapa="inicial", intento=attempt, servidor=name, error="", duracion_ms="")
+        console.print("[bold]Escribe 'ayuda' para pruebas interactivas; Ctrl+C o 'salir' detiene la práctica.[/bold]")
+        interactive.interactive_loop(servers, command, run_command, fetch_json, console, ROOT / "informes", session)
     except KeyboardInterrupt:
         console.print("\n[yellow]Interrupción recibida.[/yellow]")
     except Exception as exc:

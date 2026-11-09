@@ -30,6 +30,13 @@ class ComposeTests(unittest.TestCase):
         for i in (1, 2, 3):
             self.assertIn(f"server servidor{i}:8000;", conf)
 
+    def test_nginx_retries_another_backend_before_client_timeout(self):
+        for name in ("nginx.conf", "nginx.tres.conf"):
+            with self.subTest(name=name):
+                conf = (ROOT / "nginx" / name).read_text()
+                self.assertIn("proxy_connect_timeout 1s;", conf)
+                self.assertIn("proxy_next_upstream error timeout", conf)
+
 
 if __name__ == "__main__":
     unittest.main()

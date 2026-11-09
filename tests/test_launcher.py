@@ -52,7 +52,7 @@ class LauncherTests(unittest.TestCase):
     @patch("launcher.run_command")
     def test_interrupt_cleans_up_own_stack(self, run, record, healthy):
         run.return_value = subprocess.CompletedProcess([], 0, "", "")
-        with patch("launcher.wait_for_interrupt", side_effect=KeyboardInterrupt):
+        with patch("launcher.interactive.interactive_loop", side_effect=KeyboardInterrupt):
             launcher.launch(3)
         commands = [call.args[0] for call in run.call_args_list]
         self.assertTrue(any(cmd[-1] == "down" for cmd in commands))
@@ -100,6 +100,28 @@ class LauncherTests(unittest.TestCase):
         responses = launcher.record_requests(3)
         self.assertEqual(len(responses), 10)
         self.assertEqual(set(responses), {"Servidor 1", "Servidor 2", "Servidor 3"})
+
+    @patch("launcher.interactive.interactive_loop", side_effect=KeyboardInterrupt)
+    @patch("launcher.wait_until_healthy")
+    @patch("launcher.record_requests", return_value=["Servidor 1"] * 10)
+    @patch("launcher.run_command")
+    def test_launch_opens_interactive_console_and_preserves_cleanup(self, run, records, healthy, loop):
+        run.return_value = subprocess.CompletedProcess([], 0, "", "")
+        launcher.launch(2)
+        loop.assert_called_once()
+        session = loop.call_args.args[-1]
+        self.assertEqual(session.servers, 2)
+        self.assertEqual(len([event for event in session.events if event["accion"] == "solicitud"]), 10)
+        self.assertEqual(run.call_args.args[0][-1], "down")
+
+    @patch("launcher.interactive.interactive_loop", return_value=None)
+    @patch("launcher.wait_until_healthy")
+    @patch("launcher.record_requests", return_value=["Servidor 1"] * 10)
+    @patch("launcher.run_command")
+    def test_eof_from_console_also_downs_own_stack(self, run, _records, _healthy, _loop):
+        run.return_value = subprocess.CompletedProcess([], 0, "", "")
+        launcher.launch(2)
+        self.assertEqual(run.call_args.args[0][-1], "down")
 
 
 if __name__ == "__main__":
